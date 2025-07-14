@@ -100,7 +100,7 @@ app.post('/api/create-user', async(req,res) => {
     try{
     
     const fetch = await pool.query(
-      `SELECT M.fullname, p.designation, p.company, p.bio
+      `SELECT M.fullname, p.designation, p.company, M.bio
       FROM Mentor AS M
       INNER JOIN Mentor_profile as p 
       ON M.Mentor_Id = p.Mentor_Id
@@ -113,6 +113,10 @@ app.post('/api/create-user', async(req,res) => {
       res.status(500).json({ error: "Internal Server Error"});
     }
 
+  })
+
+  app.get('/available-mentors', (req,res) => {
+    res.sendFile(path.join(__dirname, '/public/mentor-list.html'))
   })
 
 app.listen(port, () => {
