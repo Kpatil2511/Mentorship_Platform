@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>
+            Be a Mentor! Grow your career
+        </title>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const form = document.getElementById("mentorform");
+
+                form.addEventListener("submit", function(e) {
+                    e.preventDefault();
+
+                    //Get Form Data
+                    const fname = document.getElementById("fname").value.trim();
+                    const mname = document.getElementById("mname").value.trim();
+                    const lname = document.getElementById("lname").value.trim();
+
+                    const fullname = [fname, mname, lname].filter(Boolean).join(' ');
+
+                    const email = document.getElementById("email").value;
+                    const password = document.getElementById("password").value;
+                    const Mentor_Id = document.getElementById("Mentor_Id").value;
+                    const bio = document.getElementById("bio").value;
+                    const designation = document.getElementById("designation").value;
+                    const company = document.getElementById("company").value;
+                    const location = document.getElementById("location").value;
+                    const linkedin_url = document.getElementById("linkedin_url").value;
+
+                    //Send Data as JSON
+
+                    fetch("/api/create-mentor", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+
+                        },
+                        body: JSON.stringify({fullname, email, password, Mentor_Id, bio, designation, company, location, linkedin_url}),
+                    })
+
+                        .then((res) => res.text())
+                        .then((msg) => {
+                            alert("Mentor registered successfully!");
+                            form.reset();
+                        })
+
+                        .catch((err) => {
+                            console.error("Error:", err);
+                        });
+                
+
+
+
+
+
+                });
+            });
+        </script>
+
+    </head>
+<body>
+
+    <h3>To get started fill out the details</h3>
+    <form id="mentorform">
+        <label for="fname">First Name:</label>
+        <input type="text" id="fname" name="fname" required><br>
+        <label for="mname">Middle Name:</label>
+        <input type="text" id="mname" name="mname"><br>
+        <label for="lname">Last Name:</label>
+        <input type="text" id="lname" name="lname" required><br>
+        <label for="email">Email:</label>
+        <input type="text" id="email" name="email" required><br>
+        <label for="Mentor_Id">Enter the Integer User id:</label>
+        <input type="text" id="Mentor_Id" name="Mentor_Id" required><br>
+        <label for="password">create a password:</label>
+        <input type="password" id="password" name="password" required><br>
+        <label for="bio">Enter the bio:</label>
+        <input for="text" id="bio" name="bio"><br>
+        <label for="designation">Enter your designation</label>
+        <input type="text" id="designation" name="designation" required><br>
+        <label for="company">Enter the Company:</label>
+        <input type="text" id="company" name="company" required><br>
+        <label for="location">Enter your locality: </label>
+        <input type="text" id="location" name="location" required><br>
+        <label for="linkedin_url">Enter your linkedin_url: </label>
+        <input type="text" id="linkedin_url" name="linkedin_url" required><br>
+        <button type="submit">Submit</button>
+
+    </form>
+
+
+
+</body>
+</html>

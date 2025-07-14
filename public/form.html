@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>
+            Industrial Mentorship Platform 
+        </title>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const form = document.getElementById("userform");
+
+                form.addEventListener("submit", function (e) {
+                    e.preventDefault();
+
+                    //Get form data
+                    const fname = document.getElementById("fname").value.trim();
+                    const mname = document.getElementById("mname").value.trim();
+                    const lname = document.getElementById("lname").value.trim();
+
+                    const fullname = [fname, mname, lname].filter(Boolean).join(' ');
+
+                
+                    const email = document.getElementById("email").value;
+                    const user_id = document.getElementById("user_id").value;
+                    const password = document.getElementById("password").value;
+
+                    // send as JSON to backend
+                    fetch("/api/create-user", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ fullname, email, user_id, password}),
+                    })
+
+                        .then((res) => res.text())
+                        .then((msg) => {
+                            alert("User submitted successfully!");
+                            form.reset();
+                        })
+
+                        .catch((err) => {
+                            console.error("Error:",err);
+                        });
+                });
+            });
+
+        </script>
+    </head>
+    <Body>
+        <h3>MVP to store the user data via webpage frontend</h3>
+        <form id="userform">
+            <label for="fname">First Name:</label><br>
+            <input type="text" id="fname" name="fname" required >
+            <label for="mname">Middle Name:</label><br>
+            <input type="text" id="mname" name="mname">
+            <label for="lname">Last Name:</label>
+            <input type="text" id="lname" name="lname" required><br>
+            <label for="email">Email:</label>
+            <input type="text" id="email" name="email" required><br>
+            <label for="user_id">Enter the Integer User id:</label>
+            <input type="text" id="user_id" name="user_id" required><br>
+            <label for="password">create a password:</label>
+            <input type="password" id="password" name="password" required><br>
+            <button type="submit">Submit</button>
+        </form>
+    </Body>
+</html>

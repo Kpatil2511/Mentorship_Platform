@@ -1,0 +1,28 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.mentor-container{
+    display: flex;
+    background-color: #f4f4f4;
+    flex-wrap: wrap;
+
+}
+
+body{
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+.mentor{
+    flex: 1 0 0;
+    height: 100px;
+    background:lightcyan;
+    margin: 20px;
+    color:black;
+    display:flex;
+    justify-content:center;
+    align-items:end;
+    
+}
