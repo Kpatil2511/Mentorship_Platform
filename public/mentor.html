@@ -27,16 +27,28 @@
                     const company = document.getElementById("company").value;
                     const location = document.getElementById("location").value;
                     const linkedin_url = document.getElementById("linkedin_url").value;
+                    const image = document.getElementById("image").files[0];
 
-                    //Send Data as JSON
+                    // using FormData to handle text + file
+
+                    const formData = new FormData();
+                    formData.append("fullname", fullname);
+                    formData.append("email", email);
+                    formData.append("password", password);
+                    formData.append("Mentor_Id", Mentor_Id);
+                    formData.append("bio", bio);
+                    formData.append("designation", designation);
+                    formData.append("company", company);
+                    formData.append("location", location);
+                    formData.append("linkedin_url", linkedin_url);
+                    formData.append("image", image);
+
+                    //Send Data as text+file
 
                     fetch("/api/create-mentor", {
                         method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-
-                        },
-                        body: JSON.stringify({fullname, email, password, Mentor_Id, bio, designation, company, location, linkedin_url}),
+                        
+                        body: formData,
                     })
 
                         .then((res) => res.text())
@@ -85,6 +97,7 @@
         <input type="text" id="location" name="location" required><br>
         <label for="linkedin_url">Enter your linkedin_url: </label>
         <input type="text" id="linkedin_url" name="linkedin_url" required><br>
+        <input type="file" id="image" name="image" accept="image/*"><br>
         <button type="submit">Submit</button>
 
     </form>

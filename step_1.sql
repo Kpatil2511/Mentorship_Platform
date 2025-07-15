@@ -50,4 +50,5 @@ Create table sessions(
     feedback varchar(255)
  );
 
+ALTER TABLE Mentor_profile ADD COLUMN image Varchar(255);
 

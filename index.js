@@ -7,6 +7,32 @@ const pool = require('./db')
 const port = 3000
 
 app.use(express.static(path.join(__dirname,"public")))
+app.use('/uploads', express.static(path.join(__dirname, "public/uploads")))
+
+const multer = require('multer');
+const fs = require('fs');
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadpath = path.join(__dirname, 'public/uploads');
+
+    //Ensure uploads folder exists
+    if (!fs.existsSync(uploadpath)) {
+      fs.mkdirSync(uploadpath, { recursive: true});
+    }
+    cb(null, uploadpath);
+  },
+
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = file.originalname.split('.').pop();
+    cb(null, `${file.fieldname}-${uniqueSuffix}.${extension}`);
+  
+  }
+});
+
+const upload = multer({ storage: storage});
+
+
 
 
 app.get('/', (req, res) => {
@@ -50,7 +76,7 @@ app.post('/api/create-user', async(req,res) => {
     res.status(500).send("Something went wrong:" + error.message)}
   })
 
-  app.post('/api/create-mentor', async(req,res) => {
+  app.post('/api/create-mentor', upload.single('image'), async(req,res) => {
     const data = req.body
 
     console.log("fullname: ", data.fullname)
@@ -62,6 +88,8 @@ app.post('/api/create-user', async(req,res) => {
     console.log("company", data.company)
     console.log("location", data.location)
     console.log("linkedin_url", data.linkedin_url)
+
+    const image =req.file.filename;
 
     const { fullname, email, password, Mentor_Id, bio, designation, company, location, linkedin_url} = data;
 
@@ -78,8 +106,8 @@ app.post('/api/create-user', async(req,res) => {
       const mentorId = mentorInsert.rows[0].mentor_id;
 
       await client.query(
-        'INSERT INTO Mentor_profile (mentor_id, designation, company, location, linkedin_url) VALUES ($1, $2, $3, $4, $5)',
-        [mentorId, designation, company, location, linkedin_url]
+        'INSERT INTO Mentor_profile (mentor_id, designation, company, location, linkedin_url, image) VALUES ($1, $2, $3, $4, $5, $6)',
+        [mentorId, designation, company, location, linkedin_url, image]
       );
 
       await client.query('COMMIT');
@@ -100,7 +128,7 @@ app.post('/api/create-user', async(req,res) => {
     try{
     
     const fetch = await pool.query(
-      `SELECT M.fullname, p.designation, p.company, M.bio
+      `SELECT M.fullname, p.designation, p.company, M.bio, p.image
       FROM Mentor AS M
       INNER JOIN Mentor_profile as p 
       ON M.Mentor_Id = p.Mentor_Id

@@ -4,14 +4,32 @@
         <TITLE>
             Available Mentors
         </TITLE>
-        <link rel="stylesheet" href="mentor-styles.css" />
+        <link rel="stylesheet" href="https://unpkg.com/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="https://unpkg.com/bs-brain@2.0.4/components/teams/team-1/assets/css/team-1.css" />
 
     </HEAD>
     <BODY>
 
-        <div class="mentor-container">
-
+        <!-- Team 1 - Bootstrap Brain Component -->
+<section class="bg-light py-3 py-md-5 py-xl-8">
+    <div class="container">
+      <div class="row justify-content-md-center">
+        <div class="col-12 col-md-10 col-lg-8 col-xl-7 col-xxl-6">
+          <h2 class="mb-4 display-5 text-center">Our Mentors</h2>
+          <p class="text-secondary mb-5 text-center lead fs-4">Meet our experienced and passionate mentors.</p>
+          <hr class="w-50 mx-auto mb-5 mb-xl-9 border-dark-subtle">
         </div>
+      </div>
+    </div>
+  
+    <div class="container overflow-hidden">
+      <div class="row gy-4 gy-lg-0 gx-xxl-5" id="mentor-cards">
+        
+      </div>
+    </div>
+  </section>
+
+
 
         <script>
             window.onload = async function () {
@@ -19,19 +37,29 @@
                     const res = await fetch('/api/mentors');
                     const data = await res.json();
 
-                    const container = document.querySelector(".mentor-container");
+                    const container = document.getElementById("mentor-cards");
 
                     data.forEach(mentor => {
 
                         const mentorDiv = document.createElement("div");
-                        mentorDiv.classList.add("mentor");
+                        mentorDiv.className = 'col-12 col-md-6 col-lg-3';
 
                         mentorDiv.innerHTML = `
-                            <h3>${mentor.fullname}</h3>
-                            <p><strong>Designation:</strong> ${mentor.designation}</p>
-                            <p><strong>Company:</strong> ${mentor.company}</p>
-                            <p><strong>Bio:</strong> ${mentor.bio}</p>
-                            `;
+                        <div class="card border-0 border-bottom border-primary shadow-sm overflow-hidden">
+                            <div class="card-body p-0">
+                                <figure class="m-0 p-0">
+                                    <img class="img-fluid" loading="lazy" src="/uploads/${mentor.image}" alt="${mentor.fullname}">
+                                    <figcaption class="m-0 p-4">
+                                        <h4 class="mb-1">${mentor.fullname}</h4>
+                                        <p class="text-secondary mb-0">${mentor.designation}</p>
+                                        <p class="text-secondary mb-0">${mentor.company}</p>
+                                        <p class="text-muted mt-2">${mentor.bio}</p>
+                                    </figcaption>
+                                </figure>
+                            </div>
+                        </div>
+
+                    `;
 
                             //Append to container
                             container.appendChild(mentorDiv);
