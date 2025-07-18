@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>
+        Login
+    </title>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const form = document.getElementById("loginform");
+            const messageDiv = document.getElementById("message");
+
+            form.addEventListener("submit", function(e) {
+                e.preventDefault();
+
+                const email = document.getElementById("email").value;
+                const password = document.getElementById("password").value;
+
+                messageDiv.textContent = '';
+                messageDiv.style.color = 'black';
+
+                fetch("/api/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({email, password}),
+                })
+
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(err => { throw new Error(err.message || 'Login failed');})
+                        }
+                        return response.json();
+
+                    })
+
+                    .then(data => {
+                        if (data.success) {
+                            messageDiv.textContent = data.message;
+                            messageDiv.style.color = 'green';
+                            // Redirect to the available mentors page on successful login
+                            window.location.href = '/available-mentors';
+                        } else {
+                            //Display error message from the backend
+                            messageDiv.textContent = data.message || "Login failed. Please check your credentials."
+                            messageDiv.style.color = 'red';
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error during login fetch", error);
+                        messageDiv.textContent = "An error occured: " + error.message;
+                        messageDiv.style.color = 'red';
+                    });
+            });
+        });
+    </script>
+
+</head>
+
+<Body>
+    <form id="loginform">
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required><br>
+        <button type="submit">Login</button>
+    </form>
+
+    <div id="message" style="margin-top: 10px;"></div>
+
+
+</Body>
+</html>

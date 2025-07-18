@@ -5,6 +5,18 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true}))
 const pool = require('./db')
 const port = 3000
+const { v4: uuidv4 } = require('uuid');
+const session = require('express-session');  //Import express-session
+
+// Configure session middleware
+app.use(session({
+  secret: 'Iwillbemillionaireby2030owningtheporscheandrollsroyce',
+  resave: false, //Don't save session if unmodified
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 24
+  }
+}));
 
 app.use(express.static(path.join(__dirname,"public")))
 app.use('/uploads', express.static(path.join(__dirname, "public/uploads")))
@@ -92,43 +104,143 @@ app.post('/api/create-user', async(req,res) => {
     const image =req.file.filename;
 
     const { fullname, email, password, Mentor_Id, bio, designation, company, location, linkedin_url} = data;
+    let client; //declared client here
+    try{
 
-    const client = await pool.connect();
+       client = await pool.connect();
 
-    try {
-      await client.query('BEGIN')
+      
+        await client.query('BEGIN')
 
-      const mentorInsert = await client.query(
-        'INSERT INTO Mentor (fullname, email, bio, password, Mentor_Id) VALUES ($1, $2, $3, $4, $5) RETURNING MENTOR_Id',
-        [fullname, email, bio, password, Mentor_Id]
-      );
+        const mentorInsert = await client.query(
+          'INSERT INTO Mentor (fullname, email, bio, password, Mentor_Id) VALUES ($1, $2, $3, $4, ($5)::int) RETURNING MENTOR_Id',
+          [fullname, email, bio, password, Mentor_Id]
+        );
 
-      const mentorId = mentorInsert.rows[0].mentor_id;
+        const mentorId = mentorInsert.rows[0].mentor_id;
 
-      await client.query(
-        'INSERT INTO Mentor_profile (mentor_id, designation, company, location, linkedin_url, image) VALUES ($1, $2, $3, $4, $5, $6)',
-        [mentorId, designation, company, location, linkedin_url, image]
-      );
+        await client.query(
+          'INSERT INTO Mentor_profile (mentor_id, designation, company, location, linkedin_url, image) VALUES ($1, $2, $3, $4, $5, $6)',
+          [mentorId, designation, company, location, linkedin_url, image]
+        );
 
-      await client.query('COMMIT');
-      res.status(200).json({ message: 'Mentor created successfully'});
+        await client.query('COMMIT');
+        res.status(200).json({ message: 'Mentor created successfully'});
   } catch(err) {
     await client.query('ROLLBACK');
     console.error('Error inserting mentor and profile', err);
     res.status(500).json({error: 'Failed to create Mentor'});
   } finally {
+    if(client){
     client.release(); //always release the client back to the pool
   }
+  }
+
 
    
   })
+
+  app.post('/api/login', async (req,res) => {
+    const data = req.body
+
+    console.log("email: ", data.email)
+    console.log("password: ", data.password)
+
+    const {email, password} = data;
+
+    let client;
+    try {
+      client = await pool.connect();
+
+      const query = `
+      SELECT email, password, user_id
+      FROM users
+      WHERE email = $1 AND password = $2
+      `;
+
+      
+
+      const result = await client.query(query, [email, password]);
+
+      if (result.rows.length>0) {
+        const user = result.rows[0];
+        req.session.userId = user.user_id;
+        console.log("Session userId set:", req.session.userId);
+        res.json({ success: true, message:"Login successful"});
+      } else {
+        res.status(401).json({ success: false, message: "Invalid email or password"});
+      }
+    } catch(error) {
+      console.error("Error during login:", error.message);
+      res.status(500).json({ success: false, message: "Internal server error during login."})
+    } finally {
+      if(client) {
+      client.release();
+      }
+    }
+  });
+
+  app.post('/api/book-session', async (req,res) => {
+
+    console.log("Request Body:", req.body);
+    
+      const { mentor_id,start_time, end_time, feedback, email } = req.body;
+
+      const client = await pool.connect();
+
+      try {
+
+        const userResult = await client.query(
+          'SELECT User_Id FROM users WHERE email = $1',
+          [email]
+        );
+        if (userResult.rows.length === 0) {
+          return res.status(400).json({ error: 'User not found'});
+        }
+        const User_Id = userResult.rows[0].user_id;
+
+        //2. get Mentor_Id using fullname
+
+        const Mentor_Id = mentor_id;
+        
+
+
+        
+
+        //3. Create UUID for session_id
+        const session_id = uuidv4();
+
+        //4. Insert into sessions table
+
+        await client.query(
+          `INSERT INTO sessions (session_id, User_Id, Mentor_Id, start_time, end_time, feedback, session_status)
+           VALUES ($1,$2, $3, $4, $5, $6, $7)`,
+           [session_id, User_Id, Mentor_Id, start_time, end_time, feedback, 'scheduled']
+          
+
+        );
+
+        res.status(200).json({ message: "Session booked successfully", session_id});
+
+
+      } catch(err) {
+        console.error("Booking Error:", err.message);
+        res.status(500).json({ error: "Something went wrong", details:err.message});
+
+      } finally {
+        client.release();
+      }
+
+      
+    
+  });
 
   app.get('/api/mentors', async(req,res) => {
 
     try{
     
     const fetch = await pool.query(
-      `SELECT M.fullname, p.designation, p.company, M.bio, p.image
+      `SELECT M.Mentor_Id, M.fullname, p.designation, p.company, M.bio, p.image
       FROM Mentor AS M
       INNER JOIN Mentor_profile as p 
       ON M.Mentor_Id = p.Mentor_Id
@@ -146,6 +258,14 @@ app.post('/api/create-user', async(req,res) => {
   app.get('/available-mentors', (req,res) => {
     res.sendFile(path.join(__dirname, '/public/mentor-list.html'))
   })
+
+  app.get('/book-session/:Mentor_Id', (req,res) => {
+    res.sendFile(path.join(__dirname, '/public/book-session.html'));
+  });
+
+  app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, '/public/login.html'));
+  });
 
 app.listen(port, () => {
   console.log(`Example app listening on port http://localhost:${port}`)

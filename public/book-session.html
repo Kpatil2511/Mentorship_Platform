@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<head>
+    <title>Book a Session</title>
+    <link rel="stylesheet" href="https://unpkg.com/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+</head>
+<body class="p-5">
+    <div class="container">
+        <h2> Book s Session with Mentor</h2>
+        <form id="booking-form">
+            <input type="hidden" id="mentor_id" name="mentor_id" />
+
+            
+
+            <div class="mb-3">
+                <label for="start_time" class="form-label">Start Time:</label>
+                <input type="datetime-local" class="form-control" id="start_time" required />
+              </div>
+            
+              <div class="mb-3">
+                <label for="end_time" class="form-label">End Time:</label>
+                <input type="datetime-local" class="form-control" id="end_time" required />
+              </div>
+
+              <div class="mb-3">
+                <label for="feedback" class="form-label">Feedback (Optional):</label>
+                <textarea class="form-control" id="feedback"></textarea>
+              </div>
+
+
+
+            
+            <button type="submit" class="btn btn-success">Book Now</button>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const mentorId = urlParams.get('mentor_id');
+            
+            document.getElementById("mentor_id").value = mentorId;
+    
+            document.getElementById("booking-form").addEventListener("submit", async (e) => {
+                e.preventDefault();
+    
+                const email = prompt("Enter your email to book session");
+    
+                const booking = {
+                    mentor_id: document.getElementById("mentor_id").value,  // get actual value from input
+                    start_time: document.getElementById("start_time").value,
+                    end_time: document.getElementById("end_time").value,
+                    feedback: document.getElementById("feedback").value,
+                    email: email 
+                };
+    
+                try {    
+                    const res = await fetch("/api/book-session", {
+                        method: "POST",
+                        headers: {
+                            "Content-type": "application/json"
+                        },
+                        body: JSON.stringify(booking)
+                    });
+    
+                    const result = await res.json();
+                    alert(result.message || "Session booked!");
+                } catch (err) {
+                    console.error("Booking failed:", err);
+                    alert("Booking failed. Check console.");
+                }
+    
+                document.getElementById("booking-form").reset();
+            });
+        });
+    </script>
+    
+
+    
+</body>
+</html>
