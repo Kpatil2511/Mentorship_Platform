@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <head>
     <title>Book a Session</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
 </head>
 <body class="p-5">
@@ -31,19 +32,39 @@
             
             <button type="submit" class="btn btn-success">Book Now</button>
         </form>
+        <div id="message" style="margin-top: 10px;"></div>
     </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const mentorId = urlParams.get('mentor_id');
+            // Get the full URL path, ex:- "/book-session/123"
+            const path = window.location.pathname;
+            // Split the path by '/' and get the last segment, which should be the mentor ID
+            const pathSegments = path.split('/');
+            const mentorId = pathSegments[pathSegments.length - 1];
+
+
+           
             
             document.getElementById("mentor_id").value = mentorId;
+            console.log("Mentor ID from URL:", mentorId);
+
+            const messageDiv = document.getElementById("message"); //Get the message div
     
             document.getElementById("booking-form").addEventListener("submit", async (e) => {
                 e.preventDefault();
+
+                // Clear previous messages
+                messageDiv.textContent = '';
+                messageDiv.style.color = 'black';
     
                 const email = prompt("Enter your email to book session");
+
+                if(!email) {
+                    messageDiv.textContent = "Email is required to book a session.";
+                    messageDiv.style.color = 'red';
+                    return; // Stop execution if no email
+                }
     
                 const booking = {
                     mentor_id: document.getElementById("mentor_id").value,  // get actual value from input
@@ -52,6 +73,13 @@
                     feedback: document.getElementById("feedback").value,
                     email: email 
                 };
+
+                if(!booking.mentor_id || booking.mentor_id === 'undefined') {
+                    messageDiv.textContent = "Mentor ID is missing. Please go back and select a mentor again"
+                    messageDiv.style.color = 'red';
+                    console.error("Booking failed: Mentor ID is missing or undefined");
+                    return;
+                }
     
                 try {    
                     const res = await fetch("/api/book-session", {
@@ -61,12 +89,23 @@
                         },
                         body: JSON.stringify(booking)
                     });
+
+                    if(!res.ok) {
+                        const errorData = await res.json();
+                        throw new Error(errorData.error || errorData.message || 'Failed to book session');
+                    }
     
                     const result = await res.json();
-                    alert(result.message || "Session booked!");
+                    messageDiv.textContent = result.message || "Session booked successfully!";
+                    messageDiv.style.color = 'green';
+                    setTimeout ( () => {
+                        window.location.href = '/available-mentors';
+
+                    }, 2000); // Redirect after 2 seconds 
                 } catch (err) {
                     console.error("Booking failed:", err);
-                    alert("Booking failed. Check console.");
+                    messageDiv.textContent = "Booking failed: " + err.message;
+                    messageDiv.style.color = 'red';
                 }
     
                 document.getElementById("booking-form").reset();

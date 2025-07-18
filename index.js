@@ -18,6 +18,20 @@ app.use(session({
   }
 }));
 
+function requireLogin (req, res, next) {
+  if (!req.session.userId) {
+    console.log("User not logged in. Redirecting to /login");
+    res.redirect('/login');
+    return;
+
+  }
+  else {
+    console.log("User logged in. Proceeding.");
+    next();
+  }
+
+}
+
 app.use(express.static(path.join(__dirname,"public")))
 app.use('/uploads', express.static(path.join(__dirname, "public/uploads")))
 
@@ -186,12 +200,17 @@ app.post('/api/create-user', async(req,res) => {
     
       const { mentor_id,start_time, end_time, feedback, email } = req.body;
 
-      const client = await pool.connect();
+      console.log("Received mentor_id from frontend", mentor_id);
 
-      try {
+      let client;
+      try{
+
+       client = await pool.connect();
+
+      
 
         const userResult = await client.query(
-          'SELECT User_Id FROM users WHERE email = $1',
+          'SELECT user_id FROM users WHERE email = $1',
           [email]
         );
         if (userResult.rows.length === 0) {
@@ -199,9 +218,9 @@ app.post('/api/create-user', async(req,res) => {
         }
         const User_Id = userResult.rows[0].user_id;
 
-        //2. get Mentor_Id using fullname
+        
 
-        const Mentor_Id = mentor_id;
+        
         
 
 
@@ -213,9 +232,9 @@ app.post('/api/create-user', async(req,res) => {
         //4. Insert into sessions table
 
         await client.query(
-          `INSERT INTO sessions (session_id, User_Id, Mentor_Id, start_time, end_time, feedback, session_status)
-           VALUES ($1,$2, $3, $4, $5, $6, $7)`,
-           [session_id, User_Id, Mentor_Id, start_time, end_time, feedback, 'scheduled']
+          `INSERT INTO sessions (session_id, user_id, mentor_id, start_time, end_time, feedback, session_status)
+           VALUES ($1,$2, ($3)::int, $4, $5, $6, $7)`,
+           [session_id, User_Id, mentor_id, start_time, end_time, feedback, 'scheduled']
           
 
         );
@@ -228,8 +247,10 @@ app.post('/api/create-user', async(req,res) => {
         res.status(500).json({ error: "Something went wrong", details:err.message});
 
       } finally {
+        if(client) {
         client.release();
       }
+    }
 
       
     
@@ -255,7 +276,7 @@ app.post('/api/create-user', async(req,res) => {
 
   })
 
-  app.get('/available-mentors', (req,res) => {
+  app.get('/available-mentors', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, '/public/mentor-list.html'))
   })
 
