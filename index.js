@@ -7,6 +7,11 @@ const pool = require('./db')
 const port = 3000
 const { v4: uuidv4 } = require('uuid');
 const session = require('express-session');  //Import express-session
+const { engine } = require('express-handlebars');
+
+app.engine('hbs', engine({ extname: 'hbs'}));
+app.set('view engine', 'hbs');
+app.set('views', path.join(__dirname, 'views'));
 
 // Configure session middleware
 app.use(session({
@@ -30,6 +35,17 @@ function requireLogin (req, res, next) {
     next();
   }
 
+}
+
+// Middleware to check if a mentor is logged in
+function requireMentorLogin ( req, res, next) {
+  if (!req.session.mentorId) {
+    console.log("Mentor not logged in. Redirecting to /mentor-login");
+    res.redirect('/mentor-login');
+    return;
+  }
+  console.log("Mentor logged in. Proceeding.");
+  next();
 }
 
 app.use(express.static(path.join(__dirname,"public")))
@@ -218,15 +234,7 @@ app.post('/api/create-user', async(req,res) => {
         }
         const User_Id = userResult.rows[0].user_id;
 
-        
-
-        
-        
-
-
-        
-
-        //3. Create UUID for session_id
+       //3. Create UUID for session_id
         const session_id = uuidv4();
 
         //4. Insert into sessions table
@@ -254,6 +262,38 @@ app.post('/api/create-user', async(req,res) => {
 
       
     
+  });
+
+  app.post('/api/mentor-login', async (req, res) => {
+    const { email, password} = req.body;
+    console.log("Mentor Login Attempt - Email:", email);
+
+    let client;
+    try {
+      client = await pool.connect();
+      const query = `
+      SELECT mentor_id, email, password
+      FROM Mentor 
+      WHERE email = $1 AND password = $2
+      `;
+      const result = await client.query(query, [email, password]);
+
+      if (result.rows.length > 0) {
+        const mentor = result.rows[0];
+        req.session.mentorId = mentor.mentor_id; //store mentor_id in session
+        console.log("Session mentorId set:", req.session.mentorId);
+        res.json({ success: true, message: "Mentor login successful"});
+      } else {
+        res.status(401).json({ success: false, message: "Invalid email or password"});
+      }
+    } catch (error) {
+      console.error("Error during mentor login:", error.message);
+      res.status(500).json({ success:false, message: "Internal server error during mentor login."});
+    } finally {
+      if(client) {
+        client.release();
+      }
+    }
   });
 
   app.get('/api/mentors', async(req,res) => {
@@ -287,6 +327,12 @@ app.post('/api/create-user', async(req,res) => {
   app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, '/public/login.html'));
   });
+
+  app.get('/mentor-login', (req, res) => {
+    console.log('Attempting to render view: mentor-login from path:', path.join(app.get('views'), 'mentor-login.hbs'));
+    
+    res.render('mentor-login');
+  })
 
 app.listen(port, () => {
   console.log(`Example app listening on port http://localhost:${port}`)
