@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>
+            Mentor Profile: {{mentor.fullname}}
+        </title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" >
+        <style>
+            body {
+                background-color: #f8f9fa;
+                font-family: sans-serif;
+                padding: 20px
+            }
+
+            .profile-card {
+                max-width: 800px;
+                margin: 40px auto;
+                background-color: #ffffff;
+                border-radius: 10px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                padding: 30px;
+            }
+
+            .profile-header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+
+            .profile-header img {
+                width: 150px;
+                height: 150px;
+                border-radius: 50%;
+                object-fit: cover;
+                border: 4px solid #007bff;
+                margin-bottom: 15px;
+            }
+
+            .profile-details p {
+                margin bottom: 10px;
+            }
+
+            .profile-details strong {
+                color: #333;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="profile-card">
+            <div class="profile-header">
+                {{#if mentor.image}}
+                    <img src="/uploads/{{mentor.image}}" alt="{{mentor.fullname}} Profile Picture" class="img-fluid">
+                {{else}}
+                    <img src="https://placehold.co/150x150/cccccc/333333?text=No+Image" alt="No Profile Image" class="img-fluid">
+                {{/if}}
+                <h1>{{mentor.fullname}}</h1>
+                <p class="lead text-muted">{{mentor.designation}} at {{mentor.company}}</p>    
+            </div>
+            <div class="profile-details">
+                <p><strong>Email:</strong> {{mentor.email}}</p>
+                <p><strong>Location:</strong> {{mentor.location}}</p>
+                <p><strong>Bio:</strong> {{mentor.bio}}</p>
+                {{#if mentor.linkedin_url}}
+                    <p><strong>LinkedIn:</strong> <a href="{{mentor.linkedin_url}}" target="_blank">{{mentor.linkedin_url}}</a></p>
+                {{/if}}
+            </div>
+            <div class="text-center mt-4">
+                <a href="/available-mentors" class="btn btn-secondary">Back to Mentors</a>
+            </div>
+        </div>
+    </body>
+</html>

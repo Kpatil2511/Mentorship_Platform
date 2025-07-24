@@ -84,7 +84,12 @@
                             if(data.success){
                                 messageDiv.textContent = data.message;
                                 messageDiv.style.color = 'green';
-                                window.location.href = '/mentor-area';
+                                // Redirect to mentor's personalized profile page using the slug
+                                if (data.redirectUrl) {
+                                    window.location.href = data.redirectUrl;
+                                } else {
+                                    window.location.href = '/mentor-area';
+                                }    
                             }else {
                                 messageDiv.textContent = data.message || "Login failed. Please Check the credentials"
                             }

@@ -48,6 +48,19 @@ function requireMentorLogin ( req, res, next) {
   next();
 }
 
+// Helper function to slugify a string for URL-friendly names
+function slugify(text) {
+  return text
+    .toString()
+    .normalize('NFD')  // Normalize diacritics
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-') //Replace spaces with -
+    .replace(/[^\w-]+/g, '') // Remove all non-word chars
+    .replace(/--+/g, '-'); // Replace multiple - with single -
+}
+
 app.use(express.static(path.join(__dirname,"public")))
 app.use('/uploads', express.static(path.join(__dirname, "public/uploads")))
 
@@ -272,7 +285,7 @@ app.post('/api/create-user', async(req,res) => {
     try {
       client = await pool.connect();
       const query = `
-      SELECT mentor_id, email, password
+      SELECT mentor_id, email, password, fullname
       FROM Mentor 
       WHERE email = $1 AND password = $2
       `;
@@ -281,8 +294,9 @@ app.post('/api/create-user', async(req,res) => {
       if (result.rows.length > 0) {
         const mentor = result.rows[0];
         req.session.mentorId = mentor.mentor_id; //store mentor_id in session
+        const mentorSlug = slugify(mentor.fullname);
         console.log("Session mentorId set:", req.session.mentorId);
-        res.json({ success: true, message: "Mentor login successful"});
+        res.json({ success: true, message: "Mentor login successful", redirectUrl: `/mentor/${mentorSlug}`});
       } else {
         res.status(401).json({ success: false, message: "Invalid email or password"});
       }
@@ -333,6 +347,48 @@ app.post('/api/create-user', async(req,res) => {
     
     res.render('mentor-login');
   })
+
+  app.get('/mentor/:mentorNameSlug', requireMentorLogin, async (req, res) => {
+    const mentorNameSlug = req.params.mentorNameSlug;
+    const loggedInMentorId = req.session.mentorId;
+    console.log("Accessing mentor profile for slug:", mentorNameSlug, "by logged-in mentor ID:", loggedInMentorId);
+
+    let client;
+    try {
+      client = await pool.connect();
+      const query = `
+        SELECT M.fullname, M.email, M.bio, P.designation, P.company, P.location, P.linkedin_url, P.image
+        FROM Mentor AS M
+        JOIN Mentor_profile AS P ON M.mentor_id = P.mentor_id
+        WHERE M.mentor_id = $1::int 
+        `;
+        const result = await client.query(query, [loggedInMentorId]);
+
+        if (result.rows.length > 0) {
+          const mentor = result.rows[0];
+          const actualMentorSlug = slugify(mentor.fullname);
+
+          // Verify if the slug in the URL matches the actual slug of the logged-in mentor
+          if (actualMentorSlug === mentorNameSlug) {
+          res.render('mentor-profile', { mentor: mentor});
+          } else {
+            // If logged-in mentor tries to access another mentor's profile via URL manipulation
+            console.warn(`Logged-in mentor (ID: ${loggedInMentorId}) attempted to access slug "${mentorNameSlug}" which does not match their own slug "${actualMentorSlug}". Redirecting.`);
+            res.redirect(`/mentor/${actualMentorSlug}`);
+          }  // Render new mentor-profile.hbs
+        } else {
+          console.error(`Mentor with ID ${loggedInMentorId} not found in DB despite before logged in.`);
+          res.status(404).send("Mentor not found.");
+        }
+    } catch (error) {
+      console.error("Error fetching mentor profile:", error.message);
+      res.status(500).send("Internal server error loading mentor profile.");
+    } finally {
+      if(client) {
+        client.release();
+      }
+    }
+  });
 
 app.listen(port, () => {
   console.log(`Example app listening on port http://localhost:${port}`)
