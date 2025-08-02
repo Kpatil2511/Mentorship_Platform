@@ -390,6 +390,117 @@ app.post('/api/create-user', async(req,res) => {
     }
   });
 
+
+  app.get('/mentor-dashboard', requireMentorLogin, async(req, res) => {
+    const mentorId = req.session.mentorId;  //Get the logged-in mentor's ID from session
+    let client;
+
+    console.log("Mentor Dashboard: Fetching data for mentorId:", mentorId);
+
+    try {
+      client = await pool.connect();
+
+      // 1. Fetch mentor's basic profile details
+      const mentorQuery = `
+      SELECT fullname, email
+      FROM Mentor
+      WHERE mentor_id = $1::int;
+      `;
+      const mentorResult = await client.query(mentorQuery, [mentorId]);
+
+      if(mentorResult.rows.length === 0) {
+        console.error(`Mentor with ID ${mentorId} not found for dashboard.`);
+        return res.status(404).send("Mentor profile not found");
+      }
+      const mentor = mentorResult.rows[0];
+      console.log("Mentor Dashboard: Fetched mentor details:", mentor);
+
+      // 2. Fetch sessions booked with this mentor
+      const sessionsQuery = `
+      SELECT
+        s.start_time,
+        s.end_time,
+        s.feedback,
+        s.session_status,
+        u.fullname AS mentee_fullname,
+        u.email AS mentee_email
+      FROM sessions AS s
+      JOIN users AS u ON s.user_id = u.user_id
+      WHERE s.mentor_id = $1::int
+      ORDER BY s.start_time DESC; --Order by start time, most recent first
+      `;
+      const sessionsResult = await client.query(sessionsQuery, [mentorId]);
+      const sessions = sessionsResult.rows;
+      console.log("Mentor Dashboard: Fetched sessions:", sessions);
+
+      //Render the mentor-dashboard.hbs template with the fetched data
+      res.render('mentor-dashboard', { mentor: mentor, sessions: sessions});
+
+    } catch (error) {
+      console.error("Error loading mentor dashboard:", error.message);
+      res.status(500).send("Internal server error loading dashboard.");
+    } finally {
+      if(client) {
+        client.release();
+      }
+    }
+  });
+
+  app.get('/mentee-dashboard', requireLogin, async (req, res) => {
+    const userId = req.session.userId; //Get the logged-in user's ID from session
+    let client;
+
+    console.log("Mentee Dashboard: Fetching data for userId:", userId);
+
+    try{
+      client = await pool.connect();
+
+      // 1. Fetch mentee's basic profile details
+      const userQuery = `
+      SELECT fullname, email
+      FROM users
+      WHERE user_id = $1::int;
+      `;
+      const userResult = await client.query(userQuery, [userId]);
+
+      if(userResult.rows.length === 0) {
+        console.error(`User with ID ${userId} not found for dashboard.`);
+        return res.status(404).send("User profile not found.");
+      }
+      const user = userResult.rows[0];
+      console.log("Mentee Dashboard: Fetched user details:", user); // Log user details
+
+      // 2. Fetch sessions booked by this mentee
+      const sessionsQuery = `
+      SELECT
+        s.start_time,
+        s.end_time,
+        s.feedback,
+        s.session_status,
+        m.fullname AS mentor_fullname,
+        m.email AS mentor_email
+      FROM sessions AS s
+      JOIN Mentor AS m ON s.mentor_id = m.mentor_id
+      WHERE s.user_id = $1::int
+      ORDER BY s.start_time DESC; -- Order by start time, most recent first
+      `;
+      const sessionsResult = await client.query(sessionsQuery, [userId]);
+      const sessions = sessionsResult.rows;
+      console.log("Mentee Dashboard: Fetched sessions:", sessions); // Log fetched sessions
+
+      //Render the mentee-dashboard.hbs template with the fetched data
+      res.render('mentee-dashboard', { user: user, sessions: sessions });
+
+    } catch (error) {
+      console.error("Error loading mentee dashboard:", error.message);
+      res.status(500).send("Internal server error loading dashboard.");
+    } finally {
+      if(client) {
+        client.release();
+      }
+    }
+  });
+
 app.listen(port, () => {
   console.log(`Example app listening on port http://localhost:${port}`)
 })
