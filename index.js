@@ -501,6 +501,17 @@ app.post('/api/create-user', async(req,res) => {
     }
   });
 
+  app.get('/logout', (req, res) => {
+    req.session.destroy(err => {
+      if (err) {
+        console.error("Error destroying session:", err);
+        return res.status(500).send("Could not log out.");
+      }
+      console.log("Session destroyed. User logged out.");
+      res.redirect('/'); // Redirect to homepage after logout
+    });
+  });
+
 app.listen(port, () => {
   console.log(`Example app listening on port http://localhost:${port}`)
 })
