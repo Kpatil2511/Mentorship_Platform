@@ -24,7 +24,7 @@ app.use(session({
 }));
 
 function requireLogin (req, res, next) {
-  if (!req.session.userId) {
+  if (req.session.userId === undefined || req.session.userId === null) {
     console.log("User not logged in. Redirecting to /login");
     res.redirect('/login');
     return;
@@ -59,6 +59,18 @@ function slugify(text) {
     .replace(/\s+/g, '-') //Replace spaces with -
     .replace(/[^\w-]+/g, '') // Remove all non-word chars
     .replace(/--+/g, '-'); // Replace multiple - with single -
+}
+
+function parseDateTime(dateTimeString) {
+  if(!dateTimeString) return null;
+  // Assuming input is in local time and converting to UTC for TIMESTAMPTZ storage
+  // Ensure the client-side datetime-local input sends values in a format that JS Date can parse
+  // e.g., "YYYY-MM-DDTHH:MM"
+  const date = new Date(dateTimeString);
+  if (isNaN(date.getTime())) {
+    return null; // Invalid date
+  }
+  return date.toISOString(); // Convert to ISO 8601 string (UTC)
 }
 
 app.use(express.static(path.join(__dirname,"public")))
@@ -310,6 +322,57 @@ app.post('/api/create-user', async(req,res) => {
     }
   });
 
+  // NEW: API to add mentor availability
+  app.post('/api/mentor/availability', requireMentorLogin, async (req, res) => {
+    const mentorId = req.session.mentorId;
+    const { start_time, end_time } = req.body;
+    let client;
+
+    // ---- DEBUGGING START ----
+    console.log("Backend: Received availability POST request.");
+    console.log(" mentorId from session:", mentorId);
+    console.log(" Raw start_time from req.body:", start_time);
+    console.log(" Raw end_time from req.body", end_time);
+
+    // Validate input
+    if (!start_time || !end_time) {
+      return res.status(400).json({ error: "Start time and end time are required. " });
+    }
+
+    const parsedStartTime = parseDateTime(start_time);
+    const parsedEndTime = parseDateTime(end_time);
+
+    console.log("Backend: Parsed start_time:", parsedStartTime);
+    console.log("Backend: Parsed end_time:", parsedEndTime);
+
+    if (!parsedStartTime || !parsedEndTime) {
+      return res.status(400).json({ error: "Invalid date/time format. "});
+    }
+
+    // Basic validation: ensure end time is after start time
+    if (new Date(parsedStartTime) >= new Date(parsedEndTime)) {
+      return res.status(400).json({ error: "End time must be after start time. "});
+    }
+
+    try {
+      client = await pool.connect();
+      const query = `
+      INSERT INTO mentor_availability (mentor_id, start_time, end_time)
+      VALUES ($1, $2, $3)
+      RETURNING id, start_time, end_time, is_booked;
+      `;
+      const result = await client.query(query, [mentorId, parsedStartTime, parsedEndTime]);
+      res.status(201).json({ success: true, message: "Availability added successfully!", slot: result.rows[0] });
+    } catch (error) {
+      console.error("Error adding mentor availability:", error.message);
+      res.status(500).json({ error: "Failed to add availability.", details: error.message });
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }
+  });
+
   app.get('/api/mentors', async(req,res) => {
 
     try{
@@ -510,6 +573,62 @@ app.post('/api/create-user', async(req,res) => {
       console.log("Session destroyed. User logged out.");
       res.redirect('/'); // Redirect to homepage after logout
     });
+  });
+
+  // NEW: API to get mentor availability
+  app.get('/api/mentor/availability', requireMentorLogin, async (req, res) => {
+    const mentorId = req.session.mentorId;
+    let client;
+
+    try {
+      client = await pool.connect();
+      const query = `
+      SELECT id, start_time, end_time, is_booked
+      FROM mentor_availability
+      WHERE mentor_id = $1::int
+      ORDER BY start_time ASC;
+      `;
+      const result = await client.query(query, [mentorId]);
+      res.status(200).json({ success: true, availability: result.rows });
+
+    } catch (error) {
+      console.error("Error fetching mentor availability:", error.message);
+      res.status(500).json({ error: "Failed to fetch availability.", details: error.message});
+    } finally {
+      if(client) {
+        client.release();
+      }
+    }
+  });
+
+  app.delete('/api/mentor/availability/:id', requireMentorLogin, async (req, res) => {
+    const mentorId = req.session.mentorId;
+    const availabilityId = req.params.id; // The ID of the availability slot to delete
+    let client;
+
+    try {
+      client = await pool.connect();
+      // Ensure the slot belongs to the logged-in mentor before deleting
+      const query = `
+      DELETE FROM mentor_availability
+      WHERE id = $1::int AND mentor_id = $2::int
+      RETURNING id;
+      `;
+      const result = await client.query(query, [availabilityId, mentorId]);
+
+      if (result.rowCount > 0) {
+        res.status(200).json({ success: true, message: "Availability slot deleted successfully." });
+      } else {
+        res.status(404).json({ success: false, message: "Availability slot not found or does not belong to you." });
+      }
+    } catch (error) {
+      console.error("Error deleting mentor availability:", error.message);
+      res.status(500).json({ error: "Failed to delete availability.", details: error.message });
+    } finally {
+      if (client) {
+        client.release()
+      }
+    }
   });
 
 app.listen(port, () => {

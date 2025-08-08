@@ -52,3 +52,13 @@ Create table sessions(
 
 ALTER TABLE Mentor_profile ADD COLUMN image Varchar(255);
 
+CREATE TABLE mentor_availability (
+    id SERIAL PRIMARY KEY,
+    mentor_id INT NOT NULL,
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    is_booked BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (mentor_id) REFERENCES Mentor(Mentor_Id) ON DELETE CASCADE
+);
+
