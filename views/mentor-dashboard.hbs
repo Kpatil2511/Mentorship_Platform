@@ -134,9 +134,38 @@
 
         <script>
             document.addEventListener("DOMContentLoaded", () => {
+                console.log("Mentor Dashboard: DOM Content Loaded. Initializing JavaScript.");
+
+                // Function to get current date/time in YYYY-MM-DDTHH:MM format for min attribute
+                function getMinDateTimeString() {
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() + 1); // Add a minute to ensure current minute is selectab
+                    const year = now.getFullYear();
+                    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+                    const day = now.getDate().toString().padStart(2, '0');
+                    const hours = now.getHours().toString().padStart(2, '0');
+                    const minutes = now.getMinutes().toString().padStart(2, '0');
+                    return `${year}-${month}-${day}T${hours}:${minutes}`;
+                }
                 const addAvailabilityForm = document.getElementById("add-availability-form");
                 const availabilityMessageDiv = document.getElementById("availability-message");
                 const availabilityTableBody = document.getElementById("availability-slots-table-body");
+                const startTimeInput = document.getElementById("start_time_avail");
+                const endTimeInput = document.getElementById("end_time_avail");
+
+                const minDateTime = getMinDateTimeString();
+                startTimeInput.setAttribute('min', minDateTime);
+                endTimeInput.setAttribute('min', minDateTime);
+
+                // Ensure end time is always after start time
+                startTimeInput.addEventListener('change', () => {
+                    endTimeInput.setAttribute('min', startTimeInput.value);
+                    if (endTimeInput.value < startTimeInput.value) {
+                        endTimeInput.value = startTimeInput.value;
+                    }
+                });
+
+                console.log("Frontend: Value of availabilityTableBody:", availabilityTableBody);
 
                 // Helper to format dates for display
                 function formatDateTimeForDisplay(isoString) {
@@ -155,7 +184,13 @@
 
                 // Function to fetch and render availability slots
                 async function fetchAndRenderAvailability() {
-                    availabilityTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Loading availability...</td></tr>';
+                    console.log("Frontend: fetchAndRenderAvailability called.");
+                    if (availabilityTableBody) {
+                        availabilityTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Loading availability...</td></tr>';
+                    } else {
+                        console.error("Frontend: availabilityTableBody element not found when trying to set loading message.");
+                        return;
+                    }
                     try {
                         const response = await fetch('/api/mentor/availability');
                         if (!response.ok) {
@@ -163,7 +198,11 @@
                         }
                         const data = await response.json();
 
+                        console.log("Frontend: Data received from /api/mentor/availability:", data);
+
+                        
                         availabilityTableBody.innerHTML = '';  // Clear loading message
+
 
                         if (data.availability && data.availability.length > 0) {
                             data.availability.forEach(slot => {
@@ -221,12 +260,19 @@
                             body: JSON.stringify({ start_time: startTime, end_time: endTime })
                         });
 
+                        console.log("Frontend: Response status for POST availability:", response.status);
+                        console.log("Frontend: Response status text for POST availability:", response.statusText);
+
                         const data = await response.json();
+                        console.log("Frontend: Response data for POST availability:", data);
 
                         if (response.ok) {
+                            console.log("Frontend: POST availability successful, updating UI");
                             availabilityMessageDiv.textContent = data.message;
                             availabilityMessageDiv.style.color = 'green';
                             addAvailabilityForm.reset(); // Clear form
+                            startTimeInput.setAttribute('min', getMinDateTimeString());
+                            endTimeInput.setAttribute('min', getMinDateTimeString());
                             fetchAndRenderAvailability(); // Refresh the list
                         } else {
                             throw new Error(data.error || 'Failed to add availability');

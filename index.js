@@ -236,57 +236,100 @@ app.post('/api/create-user', async(req,res) => {
   });
 
   app.post('/api/book-session', async (req,res) => {
+    console.log("Backend: Recieved book-session POST request.");
+    const { mentor_id, availability_id, mentee_email, feedback} = req.body;
+    let client;
 
-    console.log("Request Body:", req.body);
-    
-      const { mentor_id,start_time, end_time, feedback, email } = req.body;
+    // Basic validation
+    if (!mentor_id || !availability_id || !mentee_email) {
+      console.error("Backend: Validation failed - Missing mentor_id, availability_id, or mentee_email.");
+      return res.status(400).json({ error: "Mentor ID, Availability ID, and your email are required." });
+    }
 
-      console.log("Received mentor_id from frontend", mentor_id);
+    try {
+      client = await pool.connect();
+      await client.query('BEGIN'); // Start a transaction
 
-      let client;
-      try{
+      // 1. Get mentee's user_id from email
+      const userResult = await client.query(
+        'SELECT user_id FROM users WHERE email = $1',
+        [mentee_email]
+      );
+      if (userResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        console.error("Backend: Mentee email not found:", mentee_email);
+        return res.status(404).json({ error: "Your email is not registered as a user." });
+      }
+      const userId = userResult.rows[0].user_id;
 
-       client = await pool.connect();
+      // 2. Fetch the availability slot and validate it
+      const availabilityQuery = `
+        SELECT start_time, end_time, is_booked
+        FROM mentor_availability
+        WHERE id = $1::int AND mentor_id = $2::int FOR UPDATE; -- FOR UPDATE locks the row
+        `;
+        const availabilityResult = await client.query(availabilityQuery, [availability_id, mentor_id]);
 
-      
-
-        const userResult = await client.query(
-          'SELECT user_id FROM users WHERE email = $1',
-          [email]
-        );
-        if (userResult.rows.length === 0) {
-          return res.status(400).json({ error: 'User not found'});
+        if (availabilityResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          console.error(`Backend: Availability slot ${availability_id} not found for mentor ${mentor_id}.`);
+          return res.status(404).json({ error: "Selected availability slot not found for this mentor."});
         }
-        const User_Id = userResult.rows[0].user_id;
 
-       //3. Create UUID for session_id
+        const selectedSlot = availabilityResult.rows[0];
+
+        if (selectedSlot.is_booked) {
+          await client.query('ROLLBACK');
+          console.error(`Backend: Availability slot ${availability_id} is already booked.`);
+          return res.status(409).json({ error: "This slot is already booked. Please choose another." });
+        }
+
+        // Ensure the slot is not in the past (using server's current time)
+        const now = new Date();
+        if (new Date(selectedSlot.start_time) < now) {
+          await client.query('ROLLBACK');
+          console.error(`Backend: Attempted to book a past slot: ${selectedSlot.start_time}`);
+          return res.status(400).json({ error: "Cannot book a session in the past. Please select a future slot." });
+        }
+
+        // 3. Insert into sessions table
         const session_id = uuidv4();
+        const insertSessionQuery = `
+          INSERT INTO sessions (session_id, user_id, mentor_id, start_time, end_time, feedback, session_status)
+          VALUES ($1, $2, $3::int, $4, $5, $6, $7) RETURNING session_id;
+          `;
+          await client.query(insertSessionQuery, [
+            session_id,
+            userId,
+            mentor_id,
+            selectedSlot.start_time, // Use times from the availability slot
+            selectedSlot.end_time,
+            feedback,
+            'scheduled'
+          ]);
 
-        //4. Insert into sessions table
+          // 4. Update the availability slot to is_booked = true
+          const updateAvailabilityQuery = `
+            UPDATE mentor_availability
+            SET is_booked = TRUE
+            WHERE id = $1::int AND mentor_id = $2::int;
+            `;
+            await client.query(updateAvailabilityQuery, [availability_id, mentor_id]);
 
-        await client.query(
-          `INSERT INTO sessions (session_id, user_id, mentor_id, start_time, end_time, feedback, session_status)
-           VALUES ($1,$2, ($3)::int, $4, $5, $6, $7)`,
-           [session_id, User_Id, mentor_id, start_time, end_time, feedback, 'scheduled']
-          
-
-        );
-
-        res.status(200).json({ message: "Session booked successfully", session_id});
-
-
-      } catch(err) {
-        console.error("Booking Error:", err.message);
-        res.status(500).json({ error: "Something went wrong", details:err.message});
-
-      } finally {
-        if(client) {
+            await client.query('COMMIT'); //Commit the transaction
+            console.log(`Backend: Session booked successfully for availability_id ${availability_id}, session_id ${session_id}.`);
+            res.status(200).json({ message: "Session booked successfully!", session_id });
+    } catch (err) {
+      if (client) {
+        await client.query('ROLLBACK'); // Rollback on error
+      }
+      console.error("Backend: Error booking session:", err.message);
+      res.status(500).json({ error: "Failed to book session.", details: err.message });
+    } finally {
+      if (client) {
         client.release();
       }
     }
-
-      
-    
   });
 
   app.post('/api/mentor-login', async (req, res) => {
@@ -601,6 +644,30 @@ app.post('/api/create-user', async(req,res) => {
     }
   });
 
+  app.get('/api/public/mentor-availability/:mentor_id', async (req, res) => {
+    const { mentor_id } = req.params;
+    let client;
+
+    try {
+      client = await pool.connect();
+      const query = `
+        SELECT id, start_time, end_time, is_booked
+        FROM mentor_availability
+        WHERE mentor_id = $1::int AND is_booked = FALSE AND start_time > NOW()
+        ORDER BY start_time ASC;
+        `;
+        const result = await client.query(query, [mentor_id]);
+        res.status(200).json({ success: true, availability: result.rows });
+    } catch (error) {
+      console.error("Error fetching public mentor availability:", error.message);
+      res.status(500).json({ error: "Failed to fetch public availability.", details: error.message });
+    } finally {
+      if(client) {
+        client.release();
+      }
+    }
+  });
+
   app.delete('/api/mentor/availability/:id', requireMentorLogin, async (req, res) => {
     const mentorId = req.session.mentorId;
     const availabilityId = req.params.id; // The ID of the availability slot to delete
@@ -608,13 +675,27 @@ app.post('/api/create-user', async(req,res) => {
 
     try {
       client = await pool.connect();
+
+      // First, check if the slot exists and is not booked, and belongs to the mentor
+      const checkQuery = `
+        SELECT is_booked FROM mentor_availability
+        WHERE id = $1::int AND mentor_id = $2::int;
+        `;
+        const checkResult = await client.query(checkQuery, [availabilityId, mentorId]);
+
+        if (checkResult.rows.length === 0) {
+          return res.status(404).json({ success: false, message: "Availability slot not found and does not belong to you."})
+        }
+        if (checkResult.rows[0].is_booked) {
+          return res.status(400).json({ success: false, message: "Cannot delete a booked availability slot."});
+        }
       // Ensure the slot belongs to the logged-in mentor before deleting
-      const query = `
+      const deleteQuery = `
       DELETE FROM mentor_availability
       WHERE id = $1::int AND mentor_id = $2::int
       RETURNING id;
       `;
-      const result = await client.query(query, [availabilityId, mentorId]);
+      const result = await client.query(deleteQuery, [availabilityId, mentorId]);
 
       if (result.rowCount > 0) {
         res.status(200).json({ success: true, message: "Availability slot deleted successfully." });
